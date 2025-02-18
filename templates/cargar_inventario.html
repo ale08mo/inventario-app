@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cargar Inventario</title>
+    <style>
+        /* Estilos generales */
+        body {
+            background-color: #f4f4f4;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Encabezado */
+        .encabezado {
+            background-color: black;
+            display: flex;
+            align-items: center;
+            padding: 1rem 2rem;
+        }
+
+        .logos {
+            width: 6.5rem;
+            margin-right: 1rem;
+        }
+
+        h1 {
+            color: white;
+            font-size: 2.5rem;
+            margin: 0;
+            left: 8rem;
+            position: relative;
+        }
+
+        /* Botones */
+        a button, button {
+            background-color: #051527;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+
+        a button:hover, button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Contenedor principal */
+        .container {
+            max-width: 600px;
+            background: white;
+            padding: 20px;
+            margin: 20px auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 5px;
+        }
+
+        /* Estilos del formulario */
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        input, select {
+            padding: 8px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+        }
+
+        /* Flash messages */
+        .flash-messages {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .alert {
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .alert.success {
+            background-color: #28a745;
+        }
+
+        .alert.error {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Mensajes Flash -->
+    {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Encabezado -->
+    <div class="encabezado">
+        <img class="logos" src="{{ url_for('static', filename='img/Logo nee.jpeg') }}" alt="logo1">
+        <img class="logos" src="{{ url_for('static', filename='img/Logo cab.jpeg') }}" alt="logo2">
+        <img class="logos" src="{{ url_for('static', filename='img/Logo spa.jpg') }}" alt="logo3">
+        <h1>Cargar Inventario</h1>
+    </div>
+
+    <!-- Contenedor -->
+    <div class="container">
+        <a href="{{ url_for('index') }}">
+            <button>Volver al Inicio</button>
+        </a>
+
+        <form method="POST" action="{{ url_for('cargar_inventario') }}" enctype="multipart/form-data">
+            <!-- Selección de agente -->
+            <label for="agente_nombre">Seleccione un agente:</label>
+            <select id="agente_nombre" name="agente_nombre" required>
+                <option value="Susana">Susana</option>
+                <option value="Alicia">Alicia</option>
+                <option value="3">Agente 3</option>
+            </select>
+
+            <!-- Carga manual -->
+            <h2>Carga Manual</h2>
+            <label for="producto">Producto:</label>
+            <input type="text" id="producto" name="producto">
+
+            <label for="cantidad">Cantidad:</label>
+            <input type="number" id="cantidad" name="cantidad" step="1">
+
+            <!-- Carga desde PDF -->
+            <h2>Carga desde PDF</h2>
+            <label for="inventarioFile">Subir archivo PDF:</label>
+            <input type="file" id="inventarioFile" name="inventarioFile" accept="application/pdf">
+
+            <button type="submit">Cargar Inventario</button>
+        </form>
+    </div>
+
+</body>
+</html>
