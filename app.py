@@ -13,7 +13,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventario.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# Definir los modelos de la base de datos
 class Agente(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(50), unique=True, nullable=False)
@@ -34,11 +33,9 @@ class Historial(db.Model):
     cantidad = db.Column(db.Float, nullable=False)
     agente_id = db.Column(db.Integer, db.ForeignKey('agente.id'), nullable=False)
 
-# Crear la base de datos (solo la primera vez)
 with app.app_context():
     db.create_all()
 
-# Función para cargar el inventario desde un PDF
 def cargar_inventario_desde_pdf(pdf_file):
     try:
         text = ""
