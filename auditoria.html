@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoría de Inventario</title>
+    <style>
+        /* Estilos generales */
+        body {
+            background-color: #f4f4f4;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        /* Encabezado */
+        .encabezado {
+            background-color: black;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .logos-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .encabezado img {
+            width: 6rem;
+            margin-right: 1rem;
+        }
+
+        .encabezado h1 {
+            font-size: 2rem;
+            margin: 0;
+            flex-grow: 1;
+            text-align: center;
+        }
+
+        /* Botón de volver atrás */
+        .btn-volver {
+            position: absolute;
+            right: 1rem;
+            top: 37%;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, #000, #333);
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            border-radius: 30px;
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-volver:hover {
+            background: linear-gradient(135deg, #444, #777);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+        }
+        .enviar{
+            margin-top: 1.5rem;
+        }
+
+        /* Formulario */
+        form {
+            background: white;
+            padding: 2rem;
+            margin: 2rem auto;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        select {
+            width: 100%;
+            padding: 0.5rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        /* Tabla */
+        .tabla-contenedor {
+            width: 90%;
+            max-width: 800px;
+            margin: 2rem auto;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        th, td {
+            padding: 1rem;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: black;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background: #f8f8f8;
+        }
+
+        /* Botón de descargar PDF */
+        .btn-descargar {
+            background: linear-gradient(135deg, #28a745, #218838);
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            border-radius: 30px;
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 1rem;
+        }
+
+        .btn-descargar:hover {
+            background: linear-gradient(135deg, #218838, #1e7e34);
+            transform: scale(1.05);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Responsivo */
+        @media (max-width: 768px) {
+            .encabezado {
+                flex-direction: column;
+                text-align: center;
+                padding-bottom: 3rem;
+            }
+
+            .logos-container {
+                flex-direction: column;
+            }
+
+            .encabezado img {
+                width: 5rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .encabezado h1 {
+                font-size: 1.5rem;
+            }
+
+            .btn-volver {
+                position: relative;
+                top: auto;
+                right: auto;
+                transform: none;
+                margin-top: 1rem;
+            }
+
+            form, .tabla-contenedor {
+                width: 95%;
+            }
+        }
+    </style>
+    <!-- Incluir jsPDF y jspdf-autotable desde un CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.24/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+    <!-- Encabezado -->
+    <div class="encabezado">
+        <img class="logos" src="{{ url_for('static', filename='img/Logo nee.jpeg') }}" alt="logo1">
+        <img class="logos" src="{{ url_for('static', filename='img/Logo cab.jpeg') }}" alt="logo2">
+        <img class="logos" src="{{ url_for('static', filename='img/Logo spa.jpg') }}" alt="logo3">
+        <h1>Auditoría de Inventario</h1>
+    </div>
+
+    <!-- Contenedor -->
+    <div class="container">
+        <a href="{{ url_for('index') }}">
+            <button class="btn-volver">Volver al Inicio</button>
+        </a>
+
+        <!-- Formulario de selección de agente -->
+        <form method="GET" action="{{ url_for('auditoria') }}">
+            <label for="agente_nombre">Seleccione un agente:</label>
+            <select id="agente_nombre" name="agente_nombre" required>
+                <option value="">Seleccione un agente</option>
+                <option value="Susana" {% if agente_nombre == 'Susana' %}selected{% endif %}>Susana</option>
+                <option value="Alicia" {% if agente_nombre == 'Alicia' %}selected{% endif %}>Alicia</option>
+                <option value="Agente 3" {% if agente_nombre == 'Agente 3' %}selected{% endif %}>Agente 3</option>
+            </select>
+            <button class="enviar" type="submit">Cargar Inventario</button>
+        </form>
+
+        <!-- Formulario de auditoría -->
+        {% if inventario %}
+            <h2>Inventario de {{ agente_nombre }}</h2>
+            <form method="POST" action="{{ url_for('auditoria') }}">
+                <input type="hidden" name="agente_nombre" value="{{ agente_nombre }}">
+                <table id="tabla-inventario">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cantidad Actual</th>
+                            <th>Cantidad Reportada</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for producto, cantidad in inventario.items() %}
+                            <tr>
+                                <td>{{ producto }}</td>
+                                <td>{{ cantidad }}</td>
+                                <td>
+                                    <input type="number" name="cantidad_{{ producto }}" step="1" min="0" required>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <button type="button" onclick="realizarAuditoriaYDescargar()">Realizar Auditoría y Descargar PDF</button>
+                </form>
+        {% endif %}
+    </div>
+
+    <!-- Script para generar y descargar el PDF -->
+    <script>
+        function realizarAuditoriaYDescargar() {
+            // Aquí puedes agregar lógica para validar o procesar los datos antes de descargar el PDF
+            alert("Auditoría realizada exitosamente. Se procederá a descargar el reporte.");
+            descargarPDF();
+        }
+    
+        function descargarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Logo de la empresa (debe ser una imagen accesible por URL o base64)
+            
+            const logoUrl = "{{ url_for('static', filename='img/logo.jpg') }}";
+            doc.addImage(logoUrl, 'JPEG', 10, 10, 30, 30);
+
+            // Título de la empresa
+            doc.setFontSize(16);
+            doc.text("Relegant All In Beauty", 50, 20);
+
+            // Información adicional de la empresa
+            doc.setFontSize(10);
+            doc.text("Dirección: Heredia, San Pablo, Edificio Relegant", 50, 25);
+            doc.text("Teléfono: 8368-7887 / 8750-4126", 50, 30);
+            doc.text("Correo: relegantcr.oficial@gmail.com", 50, 35);
+
+            // Fecha actual
+            const fecha = new Date().toLocaleDateString();
+            doc.setFontSize(12);
+            doc.text(`Fecha: ${fecha}`, 170, 20);
+            // Título del reporte
+            doc.setFontSize(16);
+            doc.text(`Auditoría de Inventario - ${"{{ agente_nombre }}"}`, 15,50);
+
+
+            // Obtener datos de la tabla
+            const tabla = document.getElementById("tabla-inventario");
+            const filas = tabla.getElementsByTagName("tr");
+            const data = [];
+    
+            for (let i = 1; i < filas.length; i++) { // Comenzar desde 1 para omitir la cabecera
+                const celdas = filas[i].getElementsByTagName("td");
+                const inputs = filas[i].getElementsByTagName("input");
+                
+                const producto = celdas[0].innerText;
+                const cantidadActual = parseInt(celdas[1].innerText) || 0;
+                const cantidadReportada = parseInt(inputs[0].value) || 0;
+                const diferencia = cantidadReportada - cantidadActual;
+                let estado = "Cuadra";
+                let estadoStyles = {};
+    
+                if (diferencia !== 0) {
+                    estado = "Descuadre";
+                    estadoStyles = { textColor: [255, 0, 0], fontStyle: 'bold' };
+                }
+    
+                data.push([producto, cantidadActual, cantidadReportada, estado, diferencia]);
+            }
+    
+            // Agregar la tabla con estilos
+            doc.autoTable({
+                startY: 60, // Mueve la tabla hacia abajo
+                head: [['Producto', 'Cantidad Actual', 'Cantidad Reportada', 'Estado', 'Diferencia']],
+                body: data,
+                theme: 'grid', // Estilo con bordes
+                styles: { fontSize: 10 },
+                headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
+                alternateRowStyles: { fillColor: [240, 240, 240] },
+                didParseCell: function (data) {
+                    if (data.column.index === 3 && data.cell.raw === "Descuadre") {
+                        data.cell.styles.textColor = [255, 0, 0];
+                        data.cell.styles.fontStyle = 'bold';
+                    }
+                }
+            });
+    
+            // Guardar el PDF
+            doc.save(`auditoria_{{ agente_nombre }}.pdf`);
+        }
+    </script>
+</body>
+</html>

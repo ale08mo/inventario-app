@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultado de Auditoría</title>
+    <style>
+        body {
+            background-color: #f4f4f4;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        th {
+            background: black;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Resultado de Auditoría para {{ agente_nombre }}</h1>
+        <table>
+            <tr>
+                <th>Producto</th>
+                <th>Cantidad Actual</th>
+                <th>Cantidad Reportada</th>
+                <th>Diferencia</th>
+            </tr>
+            {% for descuadre in descuadres %}
+            <tr>
+                <td>{{ descuadre.producto }}</td>
+                <td>{{ descuadre.cantidad_actual }}</td>
+                <td>{{ descuadre.cantidad_reportada }}</td>
+                <td>{{ descuadre.diferencia }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        <br>
+        <a href="{{ url_for('auditoria') }}">
+            <button>Volver a Auditoría</button>
+        </a>
+    </div>
+</body>
+</html>
