@@ -1,41 +1,20 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response
-from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-from fpdf import FPDF
+from fpdf import FPDF  # Usaremos FPDF para generar el PDF
 import pdfplumber
 import re
 
 app = Flask(__name__)
 app.secret_key = 'tu_clave_secreta_aqui'
 
-# Configuración de la base de datos SQLite
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventario.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+# Diccionario global para almacenar los inventarios de los agentes
+inventarios = {
+    "Susana": {"inventario": {}, "ultima_modificacion": None, "historial": []},
+    "Alicia": {"inventario": {}, "ultima_modificacion": None, "historial": []},
+    "Agente 3": {"inventario": {}, "ultima_modificacion": None, "historial": []},
+}
 
-class Agente(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(50), unique=True, nullable=False)
-    inventario = db.relationship('Inventario', backref='agente', lazy=True)
-    historial = db.relationship('Historial', backref='agente', lazy=True)
-
-class Inventario(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    producto = db.Column(db.String(100), nullable=False)
-    cantidad = db.Column(db.Float, nullable=False)
-    agente_id = db.Column(db.Integer, db.ForeignKey('agente.id'), nullable=False)
-
-class Historial(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    fecha = db.Column(db.String(20), nullable=False)
-    tipo = db.Column(db.String(20), nullable=False)
-    producto = db.Column(db.String(100), nullable=False)
-    cantidad = db.Column(db.Float, nullable=False)
-    agente_id = db.Column(db.Integer, db.ForeignKey('agente.id'), nullable=False)
-
-with app.app_context():
-    db.create_all()
-
+# Función para cargar el inventario desde un PDF
 def cargar_inventario_desde_pdf(pdf_file):
     try:
         text = ""
@@ -43,13 +22,14 @@ def cargar_inventario_desde_pdf(pdf_file):
             for page in pdf.pages:
                 text += page.extract_text() + "\n"
 
+        # Expresión regular para capturar productos y cantidades
         inventario_pattern = re.compile(r'(\d+\.\d+)\s+Unid\s+([^\n]+?)\s+Grav\s+\d+%')
         matches = inventario_pattern.findall(text)
 
         inventario = {}
         for match in matches:
-            cantidad = float(match[0])
-            producto = match[1].strip()
+            cantidad = float(match[0])  # Cantidad convertida a número decimal
+            producto = match[1].strip()  # Nombre del producto
             inventario[producto] = cantidad
 
         return inventario
@@ -58,17 +38,14 @@ def cargar_inventario_desde_pdf(pdf_file):
         return {}
 
 # Función para registrar en el historial
-def registrar_historial(agente_id, tipo, producto, cantidad):
+def registrar_historial(agente_nombre, tipo, producto, cantidad):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    nuevo_registro = Historial(
-        fecha=fecha,
-        tipo=tipo,
-        producto=producto,
-        cantidad=cantidad,
-        agente_id=agente_id
-    )
-    db.session.add(nuevo_registro)
-    db.session.commit()
+    inventarios[agente_nombre]["historial"].append({
+        "fecha": fecha,
+        "tipo": tipo,  # "agregado", "venta" o "auditoría"
+        "producto": producto,
+        "cantidad": cantidad
+    })
 
 # Función para generar el PDF de auditoría
 def generar_pdf(agente_nombre, inventario, resultados_auditoria):
@@ -101,7 +78,6 @@ def generar_pdf(agente_nombre, inventario, resultados_auditoria):
     # Guardar el PDF en un archivo temporal
     pdf_output = pdf.output(dest="S")  # Devuelve un objeto bytes
     return pdf_output
-
 # Ruta principal
 @app.route('/')
 def index():
@@ -113,28 +89,25 @@ def cargar_inventario():
     if request.method == 'POST':
         agente_nombre = request.form['agente_nombre']
 
-        # Buscar o crear el agente en la base de datos
-        agente = Agente.query.filter_by(nombre=agente_nombre).first()
-        if not agente:
-            agente = Agente(nombre=agente_nombre)
-            db.session.add(agente)
-            db.session.commit()
+        if agente_nombre not in inventarios:
+            flash('Agente no encontrado.', 'error')
+            return redirect(url_for('cargar_inventario'))
 
+        # Verificar si se cargó un archivo PDF
         if 'inventarioFile' in request.files:
             pdf_file = request.files['inventarioFile']
             if pdf_file.filename != '':
                 try:
                     inventario_pdf = cargar_inventario_desde_pdf(pdf_file)
                     for producto, cantidad in inventario_pdf.items():
-                        # Buscar si el producto ya existe en el inventario del agente
-                        item = Inventario.query.filter_by(producto=producto, agente_id=agente.id).first()
-                        if item:
-                            item.cantidad += cantidad
+                        if producto in inventarios[agente_nombre]["inventario"]:
+                            inventarios[agente_nombre]["inventario"][producto] += cantidad
                         else:
-                            nuevo_item = Inventario(producto=producto, cantidad=cantidad, agente_id=agente.id)
-                            db.session.add(nuevo_item)
-                        registrar_historial(agente.id, "agregado", producto, cantidad)
-                    db.session.commit()
+                            inventarios[agente_nombre]["inventario"][producto] = cantidad
+                        # Registrar en el historial
+                        registrar_historial(agente_nombre, "agregado", producto, cantidad)
+                    # Actualizar la fecha de la última modificación
+                    inventarios[agente_nombre]["ultima_modificacion"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     flash('Inventario cargado correctamente desde el PDF.', 'success')
                     return redirect(url_for('cargar_inventario'))
                 except Exception as e:
@@ -146,14 +119,14 @@ def cargar_inventario():
         cantidad = float(request.form.get('cantidad', 0))
 
         if producto and cantidad > 0:
-            item = Inventario.query.filter_by(producto=producto, agente_id=agente.id).first()
-            if item:
-                item.cantidad += cantidad
+            if producto in inventarios[agente_nombre]["inventario"]:
+                inventarios[agente_nombre]["inventario"][producto] += cantidad
             else:
-                nuevo_item = Inventario(producto=producto, cantidad=cantidad, agente_id=agente.id)
-                db.session.add(nuevo_item)
-            registrar_historial(agente.id, "agregado", producto, cantidad)
-            db.session.commit()
+                inventarios[agente_nombre]["inventario"][producto] = cantidad
+            # Registrar en el historial
+            registrar_historial(agente_nombre, "agregado", producto, cantidad)
+            # Actualizar la fecha de la última modificación
+            inventarios[agente_nombre]["ultima_modificacion"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             flash('Inventario cargado correctamente de forma manual.', 'success')
             return redirect(url_for('cargar_inventario'))
 
@@ -165,51 +138,52 @@ def ventas():
     if request.method == 'POST':
         agente_nombre = request.form['agente_nombre']
 
-        agente = Agente.query.filter_by(nombre=agente_nombre).first()
-        if not agente:
+        if agente_nombre not in inventarios:
             flash('Agente no encontrado.', 'error')
             return redirect(url_for('ventas'))
 
+        # Verificar si se cargó un archivo PDF
         if 'ventasFile' in request.files:
             pdf_file = request.files['ventasFile']
             if pdf_file.filename != '':
                 try:
-                    ventas_pdf = cargar_inventario_desde_pdf(pdf_file)  # <-- REVISAR ESTA FUNCIÓN
+                    ventas_pdf = cargar_inventario_desde_pdf(pdf_file)
                     for producto, cantidad in ventas_pdf.items():
-                        item = Inventario.query.filter_by(producto=producto, agente_id=agente.id).first()
-                        if item:
-                            if item.cantidad >= cantidad:
-                                item.cantidad -= cantidad
-                                registrar_historial(agente.id, "venta", producto, cantidad)
+                        if producto in inventarios[agente_nombre]["inventario"]:
+                            if inventarios[agente_nombre]["inventario"][producto] >= cantidad:
+                                inventarios[agente_nombre]["inventario"][producto] -= cantidad
+                                # Registrar en el historial
+                                registrar_historial(agente_nombre, "venta", producto, cantidad)
+                                # Actualizar la fecha de la última modificación
+                                inventarios[agente_nombre]["ultima_modificacion"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                 flash(f'Venta de {cantidad} unidades de {producto} registrada correctamente.', 'success')
                             else:
                                 flash(f'No hay suficiente stock de {producto} para vender {cantidad} unidades.', 'error')
                         else:
                             flash(f'El producto {producto} no existe en el inventario del agente.', 'error')
-                    db.session.commit()
                     return redirect(url_for('ventas'))
                 except Exception as e:
                     flash(f'Error al procesar el PDF: {str(e)}', 'error')
                     return redirect(url_for('ventas'))
 
-        # Carga manual
+        # Si no se cargó un archivo PDF, procesar la venta manualmente
         producto = request.form.get('producto')
         cantidad = float(request.form.get('cantidad', 0))
 
         if producto and cantidad > 0:
-            item = Inventario.query.filter_by(producto=producto, agente_id=agente.id).first()
-            if item:
-                if item.cantidad >= cantidad:
-                    item.cantidad -= cantidad
-                    registrar_historial(agente.id, "venta", producto, cantidad)
-                    db.session.commit()
+            if producto in inventarios[agente_nombre]["inventario"]:
+                if inventarios[agente_nombre]["inventario"][producto] >= cantidad:
+                    inventarios[agente_nombre]["inventario"][producto] -= cantidad
+                    # Registrar en el historial
+                    registrar_historial(agente_nombre, "venta", producto, cantidad)
+                    # Actualizar la fecha de la última modificación
+                    inventarios[agente_nombre]["ultima_modificacion"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     flash(f'Venta de {cantidad} unidades de {producto} registrada correctamente.', 'success')
                 else:
                     flash(f'No hay suficiente stock de {producto} para vender {cantidad} unidades.', 'error')
             else:
                 flash(f'El producto {producto} no existe en el inventario del agente.', 'error')
-
-        return redirect(url_for('ventas'))
+            return redirect(url_for('ventas'))
 
     return render_template('ventas.html')
 
@@ -219,13 +193,12 @@ def auditoria():
     if request.method == 'POST':
         agente_nombre = request.form['agente_nombre']
 
-        agente = Agente.query.filter_by(nombre=agente_nombre).first()
-        if not agente:
+        if agente_nombre not in inventarios:
             flash('Agente no encontrado.', 'error')
             return redirect(url_for('auditoria'))
 
         # Obtener el inventario del agente
-        inventario_actual = {item.producto: item.cantidad for item in Inventario.query.filter_by(agente_id=agente.id).all()}
+        inventario_actual = inventarios[agente_nombre]["inventario"]
         resultados_auditoria = {}
 
         # Procesar las cantidades reportadas
@@ -236,22 +209,24 @@ def auditoria():
                 "reportada": cantidad_reportada,
                 "diferencia": diferencia
             }
-            registrar_historial(agente.id, "auditoria", producto, cantidad_reportada)
+
+            # Registrar la auditoría en el historial
+            registrar_historial(agente_nombre, "auditoria", producto, cantidad_reportada)
 
         # Generar el PDF
         pdf_output = generar_pdf(agente_nombre, inventario_actual, resultados_auditoria)
 
+        # Devolver el PDF como respuesta
         response = make_response(pdf_output)
         response.headers['Content-Type'] = 'application/pdf'
         response.headers['Content-Disposition'] = f'attachment; filename=auditoria_{agente_nombre}.pdf'
         return response
 
+    # Si es GET, mostrar el formulario de auditoría
     agente_nombre = request.args.get('agente_nombre')
     inventario = {}
-    if agente_nombre:
-        agente = Agente.query.filter_by(nombre=agente_nombre).first()
-        if agente:
-            inventario = {item.producto: item.cantidad for item in Inventario.query.filter_by(agente_id=agente.id).all()}
+    if agente_nombre and agente_nombre in inventarios:
+        inventario = inventarios[agente_nombre]["inventario"]
 
     return render_template('auditoria.html', inventario=inventario, agente_nombre=agente_nombre)
 
@@ -259,17 +234,15 @@ def auditoria():
 @app.route('/ver_inventarios', methods=['GET', 'POST'])
 def ver_inventarios():
     agente_nombre = request.form.get('agente_nombre')
-    inventario = []
+    inventario = {}
     ultima_modificacion = None
     historial = []
 
     if agente_nombre:
-        agente = Agente.query.filter_by(nombre=agente_nombre).first()
-        if agente:
-            inventario = Inventario.query.filter_by(agente_id=agente.id).all()
-            historial = Historial.query.filter_by(agente_id=agente.id).all()
-            if historial:
-                ultima_modificacion = historial[-1].fecha
+        if agente_nombre in inventarios:
+            inventario = inventarios[agente_nombre]["inventario"]
+            ultima_modificacion = inventarios[agente_nombre]["ultima_modificacion"]
+            historial = inventarios[agente_nombre]["historial"]
 
     return render_template('ver_inventarios.html', inventario=inventario, agente_nombre=agente_nombre, ultima_modificacion=ultima_modificacion, historial=historial)
 
